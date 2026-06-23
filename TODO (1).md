@@ -1,0 +1,2 @@
+- [ ] Update `with t_daily:` block to use `df_daily` instead of `df` for all Daily-only charts/tables (Tenor, Our Bank breakdown, Firm breakdown, Sales Person performance, Top 10 Party Names, Buyer’s Bank breakdown, etc.).
+- [ ] Re-run quick static check: ensure no remaining `df` references inside `with t_daily:` that should be daily-scoped.

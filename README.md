@@ -1,2 +1,2 @@
-# Dashboard-
-Dashboard Project
+# friendly-computing-machine
+Bank Submit History Dashboard
