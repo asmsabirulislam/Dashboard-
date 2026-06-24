@@ -190,31 +190,158 @@ raw = load(FP)
 # ─────────────────────────────────────────────────────────────────────────────
 # FILTERS
 # ─────────────────────────────────────────────────────────────────────────────
-st.sidebar.markdown("### 🔽 Filters")
-ml  = [str(m) for m in sorted(raw["MonthSort"].dropna().unique())]
-sm  = st.sidebar.multiselect("Month",    ml, default=ml)
-sf  = st.sidebar.multiselect("Firm",     sorted(raw["Firm Name"].dropna().unique()),
-                              default=sorted(raw["Firm Name"].dropna().unique()))
-sb  = st.sidebar.multiselect("Our Bank", sorted(raw["Our Bank"].dropna().unique()),
-                              default=sorted(raw["Our Bank"].dropna().unique()))
 
+# --- ১. সেশন স্টেট ইনিশিয়ালাইজ (শুধু একবার) ---
+if 'filters_initialized' not in st.session_state:
+    st.session_state.filters_initialized = True
+    # ফিল্টারগুলোর ডিফল্ট মান (সব সিলেক্টেড, পুরো ডেট রেঞ্জ)
+    st.session_state.month_default = [str(m) for m in sorted(raw["MonthSort"].dropna().unique())]
+    st.session_state.firm_default = sorted(raw["Firm Name"].dropna().unique())
+    st.session_state.bank_default = sorted(raw["Our Bank"].dropna().unique())
+    sales_persons = sorted(raw["Sales Person"].dropna().unique())
+    st.session_state.sales_choices = (["(Blank)"] + sales_persons) if raw["Sales Person"].isna().any() else sales_persons
+    st.session_state.party_default = sorted(raw["Party Name"].dropna().unique())
+    st.session_state.bankname_default = sorted(raw["Bank Name"].dropna().unique())
+    # ডেট রেঞ্জের ডিফল্ট
+    min_d = raw["_date"].min()
+    max_d = raw["_date"].max()
+    st.session_state.date_min = min_d.date() if pd.notna(min_d) else pd.Timestamp.today().date()
+    st.session_state.date_max = max_d.date() if pd.notna(max_d) else pd.Timestamp.today().date()
+    # এক্সট্রা ফিল্টার (Invoice Value রেঞ্জ)
+    st.session_state.inv_min = float(raw["Invoice Value"].min()) if not raw["Invoice Value"].isna().all() else 0.0
+    st.session_state.inv_max = float(raw["Invoice Value"].max()) if not raw["Invoice Value"].isna().all() else 1.0
+
+# --- ২. সাইডবার UI শুরু ---
+st.sidebar.markdown("## 🎛️ Control Panel")
+
+# অ্যাকটিভ ফিল্টার কাউন্টার দেখানোর জন্য কলাম
+col1, col2 = st.sidebar.columns([3, 1])
+col1.markdown("### 🔽 Filters")
+active_count = 0  # পরে আপডেট হবে
+
+# স্মার্ট রিসেট বাটন (শুধু ফিল্টার রিসেট হয়, থিম ও অন্যান্য সেশন ভ্যারিয়েবল অক্ষুণ্ণ)
+if st.sidebar.button("🔄 Reset All Filters", use_container_width=True):
+    # শুধু ফিল্টার কীগুলো রিসেট করি
+    st.session_state.month_selected = None
+    st.session_state.firm_selected = None
+    st.session_state.bank_selected = None
+    st.session_state.sales_selected = None
+    st.session_state.party_selected = None
+    st.session_state.date_selected = None
+    st.session_state.inv_range = None
+    # (থিম, ফাইল ইত্যাদি থাকে)
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+# থিম সিলেক্টর (পছন্দ মনে রাখে)
+theme_choice = st.sidebar.selectbox(
+    "🎨 Theme",
+    ["🌙 Dark", "☀️ Light"],
+    index=0 if st.session_state.get("theme", "Dark") == "Dark" else 1
+)
+st.session_state.theme = "Dark" if "Dark" in theme_choice else "Light"
+_apply_theme_css(st.session_state.theme.lower())
+st.sidebar.markdown("---")
+
+# --- ৩. ফিল্টার উইজেট (সেশন স্টেটের সাথে যুক্ত) ---
+
+# Month
+ml = [str(m) for m in sorted(raw["MonthSort"].dropna().unique())]
+if 'month_selected' not in st.session_state or st.session_state.month_selected is None:
+    st.session_state.month_selected = ml  # ডিফল্ট সব
+sm = st.sidebar.multiselect("Month", ml, default=st.session_state.month_selected)
+st.session_state.month_selected = sm
+if sm != ml: active_count += 1
+
+# Firm
+firm_list = sorted(raw["Firm Name"].dropna().unique())
+if 'firm_selected' not in st.session_state or st.session_state.firm_selected is None:
+    st.session_state.firm_selected = firm_list
+sf = st.sidebar.multiselect("Firm", firm_list, default=st.session_state.firm_selected)
+st.session_state.firm_selected = sf
+if sf != firm_list: active_count += 1
+
+# Our Bank
+bank_list = sorted(raw["Our Bank"].dropna().unique())
+if 'bank_selected' not in st.session_state or st.session_state.bank_selected is None:
+    st.session_state.bank_selected = bank_list
+sb = st.sidebar.multiselect("Our Bank", bank_list, default=st.session_state.bank_selected)
+st.session_state.bank_selected = sb
+if sb != bank_list: active_count += 1
+
+# Sales Person
 sales_persons = sorted(raw["Sales Person"].dropna().unique())
-ss_choices    = (["(Blank)"] + sales_persons) if raw["Sales Person"].isna().any() else sales_persons
-ss = st.sidebar.multiselect("Sales Person", ss_choices, default=ss_choices)
+ss_choices = (["(Blank)"] + sales_persons) if raw["Sales Person"].isna().any() else sales_persons
+if 'sales_selected' not in st.session_state or st.session_state.sales_selected is None:
+    st.session_state.sales_selected = ss_choices
+ss = st.sidebar.multiselect("Sales Person", ss_choices, default=st.session_state.sales_selected)
+st.session_state.sales_selected = ss
+if ss != ss_choices: active_count += 1
 
-sparty = st.sidebar.multiselect("Party Name",
-    sorted(raw["Party Name"].dropna().unique()),
-    default=sorted(raw["Party Name"].dropna().unique()))
+# Party Name
+party_list = sorted(raw["Party Name"].dropna().unique())
+if 'party_selected' not in st.session_state or st.session_state.party_selected is None:
+    st.session_state.party_selected = party_list
+sparty = st.sidebar.multiselect("Party Name", party_list, default=st.session_state.party_selected)
+st.session_state.party_selected = sparty
+if sparty != party_list: active_count += 1
 
-min_date = raw["_date"].min(); max_date = raw["_date"].max()
+# Bank Name
+bankname_list = sorted(raw["Bank Name"].dropna().unique())
+if 'bankname_selected' not in st.session_state or st.session_state.bankname_selected is None:
+    st.session_state.bankname_selected = bankname_list
+sbn = st.sidebar.multiselect("Bank Name", bankname_list, default=st.session_state.bankname_selected)
+st.session_state.bankname_selected = sbn
+if sbn != bankname_list: active_count += 1
+
+
+
+# Date Range
+min_date = raw["_date"].min()
+max_date = raw["_date"].max()
 if pd.isna(min_date) or pd.isna(max_date):
-    date_range = st.sidebar.date_input("Date Range",
-        value=(pd.Timestamp.today().date(), pd.Timestamp.today().date()))
+    default_date = (pd.Timestamp.today().date(), pd.Timestamp.today().date())
 else:
-    date_range = st.sidebar.date_input("Date Range",
-        value=(min_date.date(), max_date.date()))
+    default_date = (min_date.date(), max_date.date())
+if 'date_selected' not in st.session_state or st.session_state.date_selected is None:
+    st.session_state.date_selected = default_date
+date_range = st.sidebar.date_input(
+    "Date Range",
+    value=st.session_state.date_selected,
+    min_value=min_date.date() if pd.notna(min_date) else None,
+    max_value=max_date.date() if pd.notna(max_date) else None
+)
+st.session_state.date_selected = date_range
+# ডেট রেঞ্জ ডিফল্ট থেকে আলাদা কিনা চেক করতে হবে পরে (যেহেতু টিউপল তুলনা কঠিন)
 
+st.sidebar.markdown("---")
+
+# --- ৪. এক্সট্রা ফিল্টার (Invoice Value Range) ---
+st.sidebar.markdown("### ➕ Extra Filter")
+inv_min_all = float(raw["Invoice Value"].min())
+inv_max_all = float(raw["Invoice Value"].max())
+if 'inv_range' not in st.session_state or st.session_state.inv_range is None:
+    st.session_state.inv_range = (inv_min_all, inv_max_all)
+inv_range = st.sidebar.slider(
+    "💰 Invoice Value Range",
+    min_value=inv_min_all,
+    max_value=inv_max_all,
+    value=st.session_state.inv_range,
+    step=100.0,
+    format="$%0.0f"
+)
+st.session_state.inv_range = inv_range
+if inv_range != (inv_min_all, inv_max_all): active_count += 1
+
+st.sidebar.markdown("---")
+
+# --- ৫. অ্যাকটিভ কাউন্টার আপডেট করা ---
+col2.metric("Active", active_count)
+
+# --- ৬. ডেটা ফিল্টার প্রয়োগ (পুরোনো লজিক + এক্সট্রা) ---
 df = raw.copy()
+
 if sm:     df = df[df["MonthSort"].astype(str).isin(sm)]
 if sf:     df = df[df["Firm Name"].isin(sf)]
 if sb:     df = df[df["Our Bank"].isin(sb)]
@@ -228,11 +355,14 @@ if sparty: df = df[df["Party Name"].isin(sparty)]
 if isinstance(date_range, tuple) and len(date_range) == 2:
     s_d, e_d = date_range
     df = df[(df["_date"].dt.date >= s_d) & (df["_date"].dt.date <= e_d)]
+if sbn: df = df[df["Bank Name"].isin(sbn)]
 
-st.sidebar.markdown("---")
+# এক্সট্রা ফিল্টার (Invoice Value)
+min_inv, max_inv = inv_range
+df = df[(df["Invoice Value"] >= min_inv) & (df["Invoice Value"] <= max_inv)]
+
 st.sidebar.caption(f"Showing **{len(df):,}** of **{len(raw):,}** records")
 if df.empty: st.warning("No records match the filters."); st.stop()
-
 # ─────────────────────────────────────────────────────────────────────────────
 # AGGREGATES
 # ─────────────────────────────────────────────────────────────────────────────
