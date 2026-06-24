@@ -271,6 +271,7 @@ if 'filters_initialized' not in st.session_state:
     sales_persons = sorted(raw["Sales Person"].dropna().unique())
     st.session_state.sales_choices = (["(Blank)"] + sales_persons) if raw["Sales Person"].isna().any() else sales_persons
     st.session_state.party_default = sorted(raw["Party Name"].dropna().unique())
+    st.session_state.bankname_default = sorted(raw["Bank Name"].dropna().unique())
     # ডেট রেঞ্জের ডিফল্ট
     min_d = raw["_date"].min()
     max_d = raw["_date"].max()
@@ -356,6 +357,16 @@ sparty = st.sidebar.multiselect("Party Name", party_list, default=st.session_sta
 st.session_state.party_selected = sparty
 if sparty != party_list: active_count += 1
 
+# Bank Name
+bankname_list = sorted(raw["Bank Name"].dropna().unique())
+if 'bankname_selected' not in st.session_state or st.session_state.bankname_selected is None:
+    st.session_state.bankname_selected = bankname_list
+sbn = st.sidebar.multiselect("Bank Name", bankname_list, default=st.session_state.bankname_selected)
+st.session_state.bankname_selected = sbn
+if sbn != bankname_list: active_count += 1
+
+
+
 # Date Range
 min_date = raw["_date"].min()
 max_date = raw["_date"].max()
@@ -414,6 +425,7 @@ if sparty: df = df[df["Party Name"].isin(sparty)]
 if isinstance(date_range, tuple) and len(date_range) == 2:
     s_d, e_d = date_range
     df = df[(df["_date"].dt.date >= s_d) & (df["_date"].dt.date <= e_d)]
+if sbn: df = df[df["Bank Name"].isin(sbn)]
 
 # এক্সট্রা ফিল্টার (Invoice Value)
 min_inv, max_inv = inv_range
