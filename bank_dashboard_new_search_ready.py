@@ -490,11 +490,15 @@ with t_daily:
 
     st.markdown("---")
 
+    
     # ── Sales Person Performance ──────────────────────────────────────────
     spg_d = (df_daily[df_daily["Sales Person"].notna()]
                .groupby("Sales Person")
                .agg(Value=("Invoice Value","sum"), N=("LC No","count"))
                .reset_index().sort_values("Value", ascending=False))
+    
+    s1, s2 = st.columns(2)
+    
     if not spg_d.empty:
         sp_paid = (df_daily[df_daily["Payment. Rcv Dt"].notna() & df_daily["Sales Person"].notna()]
                      .groupby("Sales Person").size().reset_index(name="Paid"))
@@ -502,28 +506,35 @@ with t_daily:
         spg_d["Pct"] = (spg_d["Paid"] / spg_d["N"] * 100).round(1)
         total_val_d  = spg_d["Value"].sum()
         spg_d["% of Total"] = (spg_d["Value"] / total_val_d * 100).round(1).map(lambda x: f"{x:.1f}%")
-
-    s1, s2 = st.columns(2)
-    with s1:
-        sh("👤 Sales Person Performance")
-        sp_show = spg_d[["Sales Person","Value","N","Paid","Pct","% of Total"]].copy()
-        sp_show["Value"] = sp_show["Value"].map(lambda x: f"${x:,.2f}")
-        sp_show["Pct"]   = sp_show["Pct"].map(lambda x: f"{x:.1f}%")
-        sp_show["Paid"]  = sp_show["Paid"].astype(int)
-        sp_show.columns  = ["Sales Person","Invoice Value","Submissions","Paid","Pay Rate","% of Total"]
-        st.dataframe(sp_show, width='stretch', hide_index=True, height=360)
-    with s2:
-        sh("👤 Sales Person Chart")
-        fig_sp = px.bar(spg_d.head(12), x="Value", y="Sales Person", orientation="h",
-                        color="Sales Person", color_discrete_sequence=C,
-                        text=spg_d.head(12)["Value"].map(usd))
-        fig_sp.update_traces(textposition="outside", textfont_size=10)
-        fig_sp.update_layout(**PL_GENERAL,
-            xaxis=dict(title="Invoice Value (USD)", tickformat="$.2s", gridcolor="#1a2a3a"),
-            yaxis=dict(title="", autorange="reversed"),
-            showlegend=False, height=360)
-        st.plotly_chart(fig_sp, width='stretch')
-
+        
+        with s1:
+            sh("👤 Sales Person Performance")
+            sp_show = spg_d[["Sales Person","Value","N","Paid","Pct","% of Total"]].copy()
+            sp_show["Value"] = sp_show["Value"].map(lambda x: f"${x:,.2f}")
+            sp_show["Pct"]   = sp_show["Pct"].map(lambda x: f"{x:.1f}%")
+            sp_show["Paid"]  = sp_show["Paid"].astype(int)
+            sp_show.columns  = ["Sales Person","Invoice Value","Submissions","Paid","Pay Rate","% of Total"]
+            st.dataframe(sp_show, width='stretch', hide_index=True, height=360)
+        
+        with s2:
+            sh("👤 Sales Person Chart")
+            fig_sp = px.bar(spg_d.head(12), x="Value", y="Sales Person", orientation="h",
+                            color="Sales Person", color_discrete_sequence=C,
+                            text=spg_d.head(12)["Value"].map(usd))
+            fig_sp.update_traces(textposition="outside", textfont_size=10)
+            fig_sp.update_layout(
+                **PL_GENERAL,
+                xaxis=dict(title="Invoice Value (USD)", tickformat="$.2s", gridcolor="#1a2a3a"),
+                yaxis=dict(title="", autorange="reversed"),
+                showlegend=False, height=360
+            )
+            st.plotly_chart(fig_sp, width='stretch')
+    else:
+        with s1:
+            st.info("No Sales Person data available for the selected date.")
+        with s2:
+            st.info("No Sales Person data available for the selected date.")
+    
     st.markdown("---")
 
     # ── Tenor Distribution ────────────────────────────────────────────────
