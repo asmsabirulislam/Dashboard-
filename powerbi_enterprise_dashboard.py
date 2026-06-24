@@ -422,51 +422,6 @@ df = df[(df["Invoice Value"] >= min_inv) & (df["Invoice Value"] <= max_inv)]
 st.sidebar.caption(f"Showing **{len(df):,}** of **{len(raw):,}** records")
 if df.empty: st.warning("No records match the filters."); st.stop()
 # ─────────────────────────────────────────────────────────────────────────────
-# FILTERS
-# ─────────────────────────────────────────────────────────────────────────────
-ml  = [str(m) for m in sorted(raw["MonthSort"].dropna().unique())]
-sm  = st.sidebar.multiselect("Month",    ml, default=ml)
-sf  = st.sidebar.multiselect("Firm",     sorted(raw["Firm Name"].dropna().unique()),
-                              default=sorted(raw["Firm Name"].dropna().unique()))
-sb  = st.sidebar.multiselect("Our Bank", sorted(raw["Our Bank"].dropna().unique()),
-                              default=sorted(raw["Our Bank"].dropna().unique()))
-
-sales_persons = sorted(raw["Sales Person"].dropna().unique())
-ss_choices    = (["(Blank)"] + sales_persons) if raw["Sales Person"].isna().any() else sales_persons
-ss = st.sidebar.multiselect("Sales Person", ss_choices, default=ss_choices)
-
-sparty = st.sidebar.multiselect("Party Name",
-    sorted(raw["Party Name"].dropna().unique()),
-    default=sorted(raw["Party Name"].dropna().unique()))
-
-min_date = raw["_date"].min(); max_date = raw["_date"].max()
-if pd.isna(min_date) or pd.isna(max_date):
-    date_range = st.sidebar.date_input("Date Range",
-        value=(pd.Timestamp.today().date(), pd.Timestamp.today().date()))
-else:
-    date_range = st.sidebar.date_input("Date Range",
-        value=(min_date.date(), max_date.date()))
-
-df = raw.copy()
-if sm:     df = df[df["MonthSort"].astype(str).isin(sm)]
-if sf:     df = df[df["Firm Name"].isin(sf)]
-if sb:     df = df[df["Our Bank"].isin(sb)]
-if ss:
-    if "(Blank)" in ss:
-        sel = [s for s in ss if s != "(Blank)"]
-        df = df[(df["Sales Person"].isin(sel)) | df["Sales Person"].isna()]
-    else:
-        df = df[df["Sales Person"].isin(ss)]
-if sparty: df = df[df["Party Name"].isin(sparty)]
-if isinstance(date_range, tuple) and len(date_range) == 2:
-    s_d, e_d = date_range
-    df = df[(df["_date"].dt.date >= s_d) & (df["_date"].dt.date <= e_d)]
-
-st.sidebar.markdown("---")
-st.sidebar.caption(f"Showing **{len(df):,}** of **{len(raw):,}** records")
-if df.empty: st.warning("No records match the filters."); st.stop()
-
-# ─────────────────────────────────────────────────────────────────────────────
 # AGGREGATES
 # ─────────────────────────────────────────────────────────────────────────────
 N      = len(df)
@@ -732,12 +687,14 @@ with t_daily:
         st.dataframe(tf, width='stretch', hide_index=True, height=360)
 
     st.markdown("---")
-
     # ── Sales Person Performance ──────────────────────────────────────────
     spg_d = (df_daily[df_daily["Sales Person"].notna()]
                .groupby("Sales Person")
                .agg(Value=("Invoice Value","sum"), N=("LC No","count"))
                .reset_index().sort_values("Value", ascending=False))
+    
+    s1, s2 = st.columns(2)
+    
     if not spg_d.empty:
         sp_paid = (df_daily[df_daily["Payment. Rcv Dt"].notna() & df_daily["Sales Person"].notna()]
                      .groupby("Sales Person").size().reset_index(name="Paid"))
@@ -745,32 +702,36 @@ with t_daily:
         spg_d["Pct"] = (spg_d["Paid"] / spg_d["N"] * 100).round(1)
         total_val_d  = spg_d["Value"].sum()
         spg_d["% of Total"] = (spg_d["Value"] / total_val_d * 100).round(1).map(lambda x: f"{x:.1f}%")
-
-    s1, s2 = st.columns(2)
-    with s1:
-        sh("👤 Sales Person Performance")
-        sp_show = spg_d[["Sales Person","Value","N","Paid","Pct","% of Total"]].copy()
-        sp_show["Value"] = sp_show["Value"].map(lambda x: f"${x:,.2f}")
-        sp_show["Pct"]   = sp_show["Pct"].map(lambda x: f"{x:.1f}%")
-        sp_show["Paid"]  = sp_show["Paid"].astype(int)
-        sp_show.columns  = ["Sales Person","Invoice Value","Submissions","Paid","Pay Rate","% of Total"]
-        st.dataframe(sp_show, width='stretch', hide_index=True, height=360)
-    with s2:
-        sh("👤 Sales Person Chart")
-        fig_sp = px.bar(spg_d.head(12), x="Value", y="Sales Person", orientation="h",
-                        color="Sales Person", color_discrete_sequence=C,
-                        text=spg_d.head(12)["Value"].map(usd))
-        fig_sp.update_traces(textposition="outside", textfont_size=10)
-        fig_sp.update_layout(
-            **PL_GENERAL,
-            xaxis=dict(title="Invoice Value (USD)", tickformat="$.2s", gridcolor="#1a2a3a"),
-            yaxis=dict(title="", autorange="reversed"),
-            showlegend=False, height=360
-        )
-        st.plotly_chart(fig_sp, width='stretch')
-
+        
+        with s1:
+            sh("👤 Sales Person Performance")
+            sp_show = spg_d[["Sales Person","Value","N","Paid","Pct","% of Total"]].copy()
+            sp_show["Value"] = sp_show["Value"].map(lambda x: f"${x:,.2f}")
+            sp_show["Pct"]   = sp_show["Pct"].map(lambda x: f"{x:.1f}%")
+            sp_show["Paid"]  = sp_show["Paid"].astype(int)
+            sp_show.columns  = ["Sales Person","Invoice Value","Submissions","Paid","Pay Rate","% of Total"]
+            st.dataframe(sp_show, width='stretch', hide_index=True, height=360)
+        
+        with s2:
+            sh("👤 Sales Person Chart")
+            fig_sp = px.bar(spg_d.head(12), x="Value", y="Sales Person", orientation="h",
+                            color="Sales Person", color_discrete_sequence=C,
+                            text=spg_d.head(12)["Value"].map(usd))
+            fig_sp.update_traces(textposition="outside", textfont_size=10)
+            fig_sp.update_layout(
+                **PL_GENERAL,
+                xaxis=dict(title="Invoice Value (USD)", tickformat="$.2s", gridcolor="#1a2a3a"),
+                yaxis=dict(title="", autorange="reversed"),
+                showlegend=False, height=360
+            )
+            st.plotly_chart(fig_sp, width='stretch')
+    else:
+        with s1:
+            st.info("No Sales Person data available for the selected date.")
+        with s2:
+            st.info("No Sales Person data available for the selected date.")
+    
     st.markdown("---")
-
     # ── Tenor Distribution ────────────────────────────────────────────────
     ten_dist = pd.DataFrame()
     if "Tenor" in df_daily.columns:
